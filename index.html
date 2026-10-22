@@ -1,0 +1,175 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
+<title>Kart Amigos</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22%3E%3Ctext y=%22.9em%22 font-size=%2290%22%3E%F0%9F%8F%81%3C/text%3E%3C/svg%3E">
+<meta name="description" content="Carreras de karts en 3D con tus amigos, en el navegador.">
+<style>
+  :root { --bg: #0b1020e6; --panel: #121a2ff2; --line: #ffffff1f; --text: #f1f5f9; --muted: #94a3b8; --accent: #ff4d4d; --accent2: #ffb020; }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; height: 100%; overflow: hidden; background: #0b1020; color: var(--text); font-family: system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif; user-select: none; -webkit-user-select: none; touch-action: none; }
+  canvas { display: block; }
+  [hidden] { display: none !important; }
+  button { font: inherit; cursor: pointer; border: 1px solid var(--line); background: #ffffff14; color: var(--text); border-radius: 10px; padding: 10px 16px; font-weight: 600; transition: transform .08s, background .15s; }
+  button:hover { background: #ffffff24; }
+  button:active { transform: scale(.97); }
+  button.primary { background: linear-gradient(135deg, var(--accent), #ff7a3d); border-color: transparent; color: #fff; }
+  button.primary:hover { filter: brightness(1.1); }
+  button.big { width: 100%; padding: 14px; font-size: 18px; }
+  button.link { background: none; border: none; color: var(--muted); text-decoration: underline; padding: 6px; }
+  input, select { font: inherit; color: var(--text); background: #00000055; border: 1px solid var(--line); border-radius: 8px; padding: 8px 10px; user-select: text; }
+  input[type=range] { padding: 0; accent-color: var(--accent); }
+  label { display: flex; align-items: center; gap: 10px; justify-content: space-between; margin: 10px 0; color: var(--muted); }
+  label > input:not([type=range]), label > select { flex: 1; max-width: 220px; }
+
+  .overlay { position: fixed; inset: 0; display: grid; place-items: center; padding: 16px; background: radial-gradient(ellipse at center, #0000 0%, #0008 100%); z-index: 10; }
+  .panel { width: min(440px, 100%); max-height: 100%; overflow: auto; background: var(--panel); border: 1px solid var(--line); border-radius: 18px; padding: 22px 24px; box-shadow: 0 20px 60px #0009; backdrop-filter: blur(8px); }
+  h1 { margin: 0 0 14px; font-size: 40px; font-weight: 900; letter-spacing: 1px; font-style: italic; text-align: center; }
+  h1 span { color: var(--accent); margin-left: 8px; }
+  h2 { margin: 0 0 12px; text-align: center; }
+  .row { display: flex; gap: 10px; margin: 14px 0; }
+  .row > button { flex: 1; }
+  .msg { color: var(--accent2); min-height: 1.2em; text-align: center; margin: 8px 0 0; }
+  .hint { color: var(--muted); font-size: 13px; margin: 6px 0 0; }
+  #colors { display: flex; flex-wrap: wrap; gap: 8px; justify-content: center; margin: 6px 0 4px; }
+  .swatch { width: 30px; height: 30px; padding: 0; border-radius: 50%; border: 3px solid transparent; }
+  .swatch.on { border-color: #fff; box-shadow: 0 0 0 2px #0008; }
+  details { margin: 6px 0; color: var(--muted); }
+  details > div { display: flex; gap: 8px; margin-top: 8px; }
+  details input { flex: 1; text-transform: uppercase; letter-spacing: 3px; }
+  .controls { font-size: 12.5px; color: var(--muted); line-height: 1.7; border-top: 1px solid var(--line); margin-top: 14px; padding-top: 10px; }
+  kbd { background: #ffffff1a; border: 1px solid var(--line); border-bottom-width: 2px; border-radius: 4px; padding: 0 5px; font-size: 11.5px; color: var(--text); }
+  #linkBox { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 10px; }
+  #linkBox input { flex: 1; min-width: 0; }
+  #linkBox .hint { flex-basis: 100%; }
+  #players { list-style: none; padding: 0; margin: 8px 0 12px; }
+  #players li { display: flex; align-items: center; gap: 10px; padding: 8px 10px; border-radius: 8px; background: #ffffff0d; margin-bottom: 6px; }
+  .dot { width: 12px; height: 12px; border-radius: 50%; flex: none; box-shadow: 0 0 0 2px #0006; }
+
+  #loading { position: fixed; inset: 0; display: grid; place-items: center; font-size: 22px; background: #0b1020; z-index: 20; }
+
+  /* HUD */
+  .sh { text-shadow: 0 2px 0 #0009, 0 0 10px #0007; }
+  #hud { position: fixed; inset: 0; pointer-events: none; z-index: 5; }
+  #tl { position: absolute; top: 14px; left: 16px; font-weight: 800; }
+  #pos { font-size: 62px; line-height: 1; font-style: italic; }
+  #pos small { font-size: 22px; opacity: .8; }
+  #lap { font-size: 22px; margin-top: 4px; }
+  #time { font-size: 20px; font-variant-numeric: tabular-nums; }
+  #best { font-size: 14px; opacity: .85; font-variant-numeric: tabular-nums; }
+  #board { position: absolute; top: 150px; left: 16px; margin: 0; padding: 0; list-style: none; font-size: 14px; font-weight: 700; }
+  #board li { display: flex; align-items: center; gap: 8px; padding: 3px 10px 3px 6px; margin-bottom: 3px; background: #0006; border-radius: 6px; counter-increment: pos; }
+  #board li::before { content: counter(pos); width: 14px; text-align: right; opacity: .7; }
+  #board li.me { background: #ffb02055; }
+  #itemSlot { position: absolute; top: 14px; left: 50%; transform: translateX(-50%); width: 84px; height: 84px; border-radius: 16px; background: #0007; border: 3px solid #ffffff55; display: grid; place-items: center; font-size: 48px; }
+  #itemSlot.ready { border-color: var(--accent2); box-shadow: 0 0 18px #ffb02088; }
+  #map { position: absolute; top: 14px; right: 14px; background: #0004; border-radius: 14px; }
+  #speed { position: absolute; right: 22px; bottom: 18px; font-weight: 900; font-style: italic; text-align: right; }
+  #spd { font-size: 56px; font-variant-numeric: tabular-nums; }
+  #speed small { font-size: 18px; margin-left: 4px; }
+  #center { position: absolute; inset: 0; display: grid; place-items: center; font-size: 120px; font-weight: 900; font-style: italic; }
+  #wrong { position: absolute; top: 30%; left: 50%; transform: translateX(-50%); font-size: 34px; font-weight: 900; color: #fff; background: #d32f2fcc; padding: 8px 20px; border-radius: 10px; animation: blink .6s infinite alternate; }
+  @keyframes blink { to { opacity: .35; } }
+  #toast { position: fixed; top: 22%; left: 50%; transform: translate(-50%, 0); font-size: 30px; font-weight: 900; font-style: italic; opacity: 0; pointer-events: none; z-index: 15; text-shadow: 0 2px 0 #0009, 0 0 12px #000a; }
+  #toast.on { animation: toast 2s ease-out; }
+  @keyframes toast { 0% { opacity: 0; transform: translate(-50%, 10px); } 10%, 75% { opacity: 1; transform: translate(-50%, 0); } 100% { opacity: 0; } }
+  #resTable { width: 100%; border-collapse: collapse; font-size: 16px; font-variant-numeric: tabular-nums; }
+  #resTable td { padding: 6px 8px; border-bottom: 1px solid var(--line); }
+  #resTable tr.me { color: var(--accent2); font-weight: 800; }
+  #results { background: #0005; }
+
+  /* Táctil */
+  #touch { position: fixed; inset: 0; pointer-events: none; z-index: 6; }
+  #touch button { position: absolute; pointer-events: auto; width: 74px; height: 74px; border-radius: 50%; font-size: 26px; background: #0006; border: 2px solid #ffffff44; }
+  #tLeft { left: 20px; bottom: 30px; } #tRight { left: 108px; bottom: 30px; }
+  #tGas { right: 20px; bottom: 30px; } #tBrake { right: 108px; bottom: 30px; }
+  #tDrift { right: 20px; bottom: 118px; } #tItem { right: 108px; bottom: 118px; }
+  @media (max-width: 700px) {
+    #pos { font-size: 42px; } #board { display: none; } #map { width: 120px; height: 120px; }
+    #itemSlot { width: 64px; height: 64px; font-size: 36px; } #spd { font-size: 36px; } #speed { bottom: 210px; }
+  }
+</style>
+<script src="https://cdn.jsdelivr.net/npm/peerjs@1.5.4/dist/peerjs.min.js"></script>
+<script type="importmap">
+{ "imports": {
+  "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js",
+  "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/"
+} }
+</script>
+</head>
+<body>
+<div id="loading">Cargando el circuito…</div>
+
+<div id="menu" class="overlay">
+  <div class="panel">
+    <h1>KART<span>AMIGOS</span></h1>
+    <label>Tu nombre <input id="name" maxlength="12" autocomplete="off"></label>
+    <div id="colors"></div>
+    <div id="joinBox" hidden style="margin-top:14px"><button id="btnJoin" class="primary big">Unirse a la sala <b id="joinCode"></b></button></div>
+    <div class="row">
+      <button id="btnSolo">Jugar solo</button>
+      <button id="btnHost" class="primary">Crear sala online</button>
+    </div>
+    <details><summary>Tengo un código de sala</summary>
+      <div><input id="codeInput" maxlength="5" placeholder="ABCDE" autocomplete="off"><button id="btnCode">Unirse</button></div>
+    </details>
+    <label>Gráficos <select id="quality"><option value="alta">Altos</option><option value="baja">Rendimiento</option></select></label>
+    <p id="menuMsg" class="msg"></p>
+    <div class="controls">
+      <kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd> / flechas: conducir · <kbd>Espacio</kbd>: derrapar (al soltar, turbo)<br>
+      <kbd>E</kbd> / <kbd>Shift</kbd>: usar objeto (con <kbd>S</kbd> pulsada, hacia atrás) · <kbd>C</kbd>: mirar atrás · <kbd>R</kbd>: volver a la pista<br>
+      Mando: A/RT acelerar · B/LT frenar · RB derrapar · X/LB objeto · Y mirar atrás
+    </div>
+  </div>
+</div>
+
+<div id="lobby" class="overlay" hidden>
+  <div class="panel">
+    <h2 id="lobbyTitle">Sala</h2>
+    <div id="linkBox">
+      <input id="link" readonly>
+      <button id="btnCopy" class="primary">Copiar enlace</button>
+      <p class="hint">Pásale este enlace a tus amigos: solo tienen que abrirlo en Chrome y pulsar «Unirse».</p>
+    </div>
+    <ul id="players"></ul>
+    <div id="hostOpts">
+      <label>Bots <input type="range" id="bots" min="0" max="7"> <b id="botsVal"></b></label>
+      <label>Dificultad <select id="diff"><option value="0.92">Fácil</option><option value="0.98">Normal</option><option value="1.05">Difícil</option></select></label>
+      <label>Vueltas <input type="range" id="laps" min="1" max="5"> <b id="lapsVal"></b></label>
+      <button id="btnStart" class="primary big">¡Empezar carrera!</button>
+    </div>
+    <p id="waitMsg" class="msg" hidden></p>
+    <div style="text-align:center"><button id="btnLeave" class="link">Salir</button></div>
+  </div>
+</div>
+
+<div id="hud" hidden>
+  <div id="tl" class="sh"><div id="pos"></div><div id="lap"></div><div id="time"></div><div id="best"></div></div>
+  <ol id="board"></ol>
+  <div id="itemSlot"><span id="itemIcon"></span></div>
+  <canvas id="map" width="190" height="190"></canvas>
+  <div id="speed" class="sh"><span id="spd">0</span><small>km/h</small></div>
+  <div id="center" class="sh"></div>
+  <div id="wrong" hidden>¡SENTIDO CONTRARIO!</div>
+</div>
+
+<div id="touch" hidden>
+  <button id="tLeft">◀</button><button id="tRight">▶</button>
+  <button id="tGas">▲</button><button id="tBrake">▼</button>
+  <button id="tDrift">↯</button><button id="tItem">★</button>
+</div>
+
+<div id="results" class="overlay" hidden>
+  <div class="panel">
+    <h2 id="resTitle"></h2>
+    <table id="resTable"></table>
+    <div class="row" id="resBtns"></div>
+  </div>
+</div>
+<div id="toast"></div>
+
+<script type="module" src="js/main.js"></script>
+</body>
+</html>
