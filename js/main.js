@@ -239,7 +239,7 @@ function sendSnapshot() {
 function applyRemote(k, now) {
   const b = k.buf;
   if (!b.length) return;
-  const rt = now - 100;
+  const rt = now - 130;
   while (b.length > 2 && b[1].t <= rt) b.shift();
   const a = b[0], c = b[1], s = k.s;
   let x, y, z, h;
@@ -393,10 +393,11 @@ function setupMenu() {
 
 async function join(code) {
   readMe();
-  setMsg('Conectando…');
+  setMsg('Conectando… (puede tardar unos segundos)');
   try {
     await net.joinRoom(code, { name: game.me.name, color: game.me.color });
     setMsg('');
+    toast(net.via === 'directa' ? 'Conectado' : 'Conectado (vía servidor)');
     game.lobby = { players: [], bots: 0, laps: 3, diff: 0.98, racing: false };
     showLobby();
   } catch (e) {
