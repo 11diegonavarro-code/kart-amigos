@@ -33,8 +33,30 @@ function label(text, color) {
   return s;
 }
 
-export function buildKart(color, name, showLabel) {
-  const paint = new THREE.MeshPhysicalMaterial({ color, metalness: 0.25, roughness: 0.32, clearcoat: 1, clearcoatRoughness: 0.08 });
+function blobShadow() {
+  const c = document.createElement('canvas');
+  c.width = c.height = 64;
+  const g = c.getContext('2d'), gr = g.createRadialGradient(32, 32, 4, 32, 32, 32);
+  gr.addColorStop(0, 'rgba(0,0,0,0.6)'); gr.addColorStop(1, 'rgba(0,0,0,0)');
+  g.fillStyle = gr; g.fillRect(0, 0, 64, 64);
+  return new THREE.CanvasTexture(c);
+}
+const shadowTex = blobShadow();
+
+function numberTexture(n) {
+  const c = document.createElement('canvas');
+  c.width = 128; c.height = 72;
+  const g = c.getContext('2d');
+  g.fillStyle = '#f5f5f5'; g.beginPath(); g.roundRect(4, 4, 120, 64, 14); g.fill();
+  g.fillStyle = '#111'; g.font = 'bold 54px system-ui, sans-serif'; g.textAlign = 'center'; g.textBaseline = 'middle';
+  g.fillText(String(n), 64, 39);
+  const t = new THREE.CanvasTexture(c);
+  t.colorSpace = THREE.SRGBColorSpace;
+  return t;
+}
+
+export function buildKart(color, name, showLabel, number = 1) {
+  const paint = new THREE.MeshPhysicalMaterial({ color, metalness: 0, roughness: 0.42, clearcoat: 0.6, clearcoatRoughness: 0.12, envMapIntensity: 0.75 });
   const root = new THREE.Group(), body = new THREE.Group();
   root.add(body);
   const add = (parent, geo, mat, x, y, z, rx = 0, ry = 0, rz = 0) => {
@@ -58,6 +80,14 @@ export function buildKart(color, name, showLabel) {
   for (const s of [-1, 1]) add(body, new THREE.BoxGeometry(0.04, 0.5, 0.06), black, s * 0.4, 0.53, -0.98);
   add(body, new THREE.CylinderGeometry(0.025, 0.025, 0.5, 6), darkMetal, 0, 0.45, 0.55, -1.0);
   add(body, new THREE.TorusGeometry(0.16, 0.025, 8, 20), black, 0, 0.64, 0.36, -1.0);
+
+  // Dorsales en los pontones laterales y sombra de contacto (asienta el kart en el suelo)
+  const plate = new THREE.MeshStandardMaterial({ map: numberTexture(number), roughness: 0.4 });
+  for (const s of [-1, 1]) add(body, new THREE.PlaneGeometry(0.42, 0.24), plate, s * 0.83, 0.28, -0.05, 0, s * Math.PI / 2);
+  const blob = new THREE.Mesh(new THREE.PlaneGeometry(1.9, 2.9).rotateX(-Math.PI / 2), new THREE.MeshBasicMaterial({ map: shadowTex, transparent: true, depthWrite: false }));
+  blob.position.y = 0.03;
+  blob.renderOrder = 1;
+  root.add(blob);
 
   // Piloto
   add(body, new THREE.CapsuleGeometry(0.2, 0.32, 4, 10), suit, 0, 0.78, -0.3, -0.3);
@@ -86,8 +116,8 @@ export function buildKart(color, name, showLabel) {
 
   // Turbo y escudo
   const flame = new THREE.Group();
-  const outerFlame = new THREE.Mesh(new THREE.ConeGeometry(0.13, 0.9, 10), new THREE.MeshBasicMaterial({ color: 0xff6a00, transparent: true, opacity: 0.85 }));
-  const innerFlame = new THREE.Mesh(new THREE.ConeGeometry(0.07, 0.55, 10), new THREE.MeshBasicMaterial({ color: 0xfff2a0 }));
+  const outerFlame = new THREE.Mesh(new THREE.ConeGeometry(0.13, 0.9, 10), new THREE.MeshBasicMaterial({ color: new THREE.Color(0xff6a00).multiplyScalar(6), transparent: true, opacity: 0.85 }));
+  const innerFlame = new THREE.Mesh(new THREE.ConeGeometry(0.07, 0.55, 10), new THREE.MeshBasicMaterial({ color: new THREE.Color(0xfff2a0).multiplyScalar(8) }));
   outerFlame.position.y = innerFlame.position.y = 0.4;
   flame.add(outerFlame, innerFlame);
   flame.position.set(0.42, 0.42, -1.27);

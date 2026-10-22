@@ -2,11 +2,11 @@ import * as THREE from 'three';
 import * as T from './track-data.js';
 import { newKart, stepKart, wallCollide, kartCollide, speedOf } from './physics.js';
 import { botInput } from './ai.js';
-import { createWorld } from './scene.js';
+import { createWorld, QUALITY } from './scene.js';
 import { buildKart } from './kart-model.js';
 import { FX } from './fx.js';
 import { Sound } from './audio.js';
-import { Items, ITEMS, botUseItem } from './items.js';
+import { Items, ITEMS, botUseItem, warmMeshes } from './items.js';
 import { Net } from './net.js';
 
 const $ = id => document.getElementById(id);
@@ -22,14 +22,16 @@ const fmt = t => `${Math.floor(t / 60)}:${(t % 60).toFixed(3).padStart(6, '0')}`
 const cleanName = n => String(n || '').replace(/[^\p{L}\p{N} _.-]/gu, '').trim().slice(0, 12) || 'Piloto';
 
 // ---------- Motor ----------
-const quality = store.get('ka-quality', 'alta');
-const renderer = new THREE.WebGLRenderer({ antialias: quality === 'alta', powerPreference: 'high-performance' });
-renderer.setPixelRatio(Math.min(devicePixelRatio, quality === 'alta' ? 1.5 : 1));
+const savedQ = store.get('ka-quality', 'alta');
+const quality = QUALITY[savedQ] ? savedQ : 'alta';
+const renderer = new THREE.WebGLRenderer({ antialias: quality === 'baja', powerPreference: 'high-performance' });
+let pixelRatio = Math.min(devicePixelRatio, QUALITY[quality].maxRatio);
+renderer.setPixelRatio(pixelRatio);
 renderer.setSize(innerWidth, innerHeight);
 document.body.prepend(renderer.domElement);
-const world = createWorld(renderer, quality);
+const world = await createWorld(renderer, quality, p => { $('loadPct').textContent = `${Math.round(p * 100)}%`; });
 addEventListener('resize', world.resize);
-const fx = new FX(world.scene, quality === 'alta');
+const fx = new FX(world.scene, quality !== 'baja');
 const net = new Net();
 const sound = new Sound();
 
@@ -55,6 +57,19 @@ const game = {
 const items = new Items(game);
 game.items = items;
 
+// Compila de antemano los materiales de karts, objetos y efectos: así no hay tirones al empezar la carrera
+{
+  const group = new THREE.Group();
+  group.add(buildKart('#ff0000', 'x', true, 1).root, ...warmMeshes());
+  group.position.set(0, -60, 0);
+  world.scene.add(group);
+  const hidden = [];
+  world.scene.traverse(o => { if (!o.visible) { hidden.push(o); o.visible = true; } });
+  await renderer.compileAsync(world.scene, world.camera).catch(() => {});
+  for (const o of hidden) o.visible = false;
+  group.removeFromParent();
+}
+
 // ---------- Karts y carrera ----------
 let player = null;
 
@@ -67,7 +82,7 @@ function makeKart(r, slot, diff) {
   const isPlayer = !r.bot && r.owner === net.me;
   const owned = r.bot ? (!net.online || net.host) : isPlayer;
   const base = r.bot ? diff * (0.96 + Math.random() * 0.08) : 1;
-  const model = buildKart(r.color, r.name, !isPlayer);
+  const model = buildKart(r.color, r.name, !isPlayer, slot + 1);
   world.scene.add(model.root);
   return {
     ...r, owned, isPlayer, s, model,
@@ -570,6 +585,7 @@ function chaseCamera(dt, look) {
 
 let orbit = 0;
 function menuCamera(dt) {
+  if (window.kartDebug?.freezeCam) return;
   orbit += dt * 0.04;
   world.camera.position.set(6 + Math.cos(orbit) * 230, 95, 16 + Math.sin(orbit) * 230);
   world.camera.lookAt(6, 0, 16);
@@ -603,6 +619,30 @@ function kartFx(k, dt) {
   }
 }
 
+// ---------- Resolución dinámica ----------
+// Cuenta los fotogramas lentos (>20 ms): si son muchos baja la nitidez, si casi no hay la sube.
+// Ignora los primeros segundos de cada fase porque ahí se compilan shaders y hay tirones puntuales.
+let perfT = 0, perfN = 0, perfSlow = 0, warmup = 3, lastPhase = '', perfHinted = false;
+function adaptResolution(raw) {
+  if (game.phase !== lastPhase) { lastPhase = game.phase; warmup = 3; perfT = perfN = perfSlow = 0; }
+  if (raw > 0.25 || window.kartDebug?.noAdapt) return; // pestaña en segundo plano
+  if ((warmup -= raw) > 0) return;
+  perfT += raw; perfN++;
+  if (raw > 0.02) perfSlow++;
+  if (perfT < 1.5) return;
+  const slow = perfSlow / perfN;
+  perfT = perfN = perfSlow = 0;
+  const max = Math.min(devicePixelRatio, world.quality.maxRatio), min = Math.max(0.5, max * 0.5);
+  let next = pixelRatio;
+  if (slow > 0.12) next = Math.max(min, pixelRatio * 0.9);
+  if (slow > 0.3 && pixelRatio <= min + 0.01 && quality !== 'baja' && !perfHinted && inRace()) {
+    perfHinted = true;
+    toast('Tu equipo va justo: prueba Gráficos → Rendimiento en el menú');
+  }
+  else if (slow < 0.03 && pixelRatio < max) next = Math.min(max, pixelRatio * 1.05);
+  if (Math.abs(next - pixelRatio) > 0.01) { pixelRatio = next; world.setPixelRatio(pixelRatio); }
+}
+
 // ---------- Bucle principal ----------
 let last = performance.now(), time = 0, sendT = 0, hudT = 0, mapT = 0, lastRed = 0;
 function countdownTick(dt) {
@@ -621,8 +661,9 @@ function countdownTick(dt) {
 }
 
 function frame(now) {
-  const dt = Math.min(0.05, (now - last) / 1000);
+  const raw = (now - last) / 1000, dt = Math.min(0.05, raw);
   last = now; time += dt;
+  adaptResolution(raw);
   wallCd -= dt;
 
   if (inRace()) {
@@ -678,6 +719,7 @@ function frame(now) {
 
   for (const k of game.karts) { kartFx(k, dt); k.model.update(k.s, dt, time); }
   fx.update(dt);
+  world.update(dt, time, inRace() && player && player.s.boostT > 0);
   world.render();
   requestAnimationFrame(frame);
 }

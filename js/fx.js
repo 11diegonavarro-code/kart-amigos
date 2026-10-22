@@ -47,7 +47,7 @@ export class FX {
 
     // Explosiones
     this.booms = Array.from({ length: 4 }, () => {
-      const m = new THREE.Mesh(new THREE.SphereGeometry(1, 20, 14), new THREE.MeshBasicMaterial({ color: 0xffa040, transparent: true, depthWrite: false }));
+      const m = new THREE.Mesh(new THREE.SphereGeometry(1, 20, 14), new THREE.MeshBasicMaterial({ color: new THREE.Color(0xffa040).multiplyScalar(1.6), transparent: true, depthWrite: false }));
       m.visible = false;
       scene.add(m);
       return { m, t: 0 };
@@ -66,7 +66,7 @@ export class FX {
   sparkAt(x, y, z, color) {
     const p = this.sparks[this.pi = (this.pi + 1) % this.sparks.length];
     p.s.position.set(x, y + 0.15, z);
-    p.s.material.color.set(color);
+    p.s.material.color.set(color).multiplyScalar(4); // por encima de 1 para que brille con el bloom
     p.s.scale.setScalar(0.25 + Math.random() * 0.2);
     Object.assign(p, { life: 0.3, max: 0.3, vx: (Math.random() - 0.5) * 5, vy: 1 + Math.random() * 3, vz: (Math.random() - 0.5) * 5, grow: -0.5, alpha: 1 });
     p.s.visible = true;
@@ -84,7 +84,7 @@ export class FX {
     b.m.position.set(x, y + 1, z);
     b.t = 0;
     b.m.visible = true;
-    for (let i = 0; i < 24; i++) this.smokeAt(x + (Math.random() - 0.5) * 5, y, z + (Math.random() - 0.5) * 5, i % 3 ? 0x555555 : 0xff8a30, 3, 1.8, 0.8);
+    for (let i = 0; i < 16; i++) this.smokeAt(x + (Math.random() - 0.5) * 5, y, z + (Math.random() - 0.5) * 5, i % 3 ? 0x555555 : 0xff8a30, 2.4, 1.6, 0.55);
   }
 
   update(dt) {
@@ -100,9 +100,9 @@ export class FX {
     for (const b of this.booms) {
       if (!b.m.visible) continue;
       b.t += dt;
-      b.m.scale.setScalar(1 + b.t * 22);
-      b.m.material.opacity = Math.max(0, 1 - b.t / 0.45);
-      if (b.t > 0.45) b.m.visible = false;
+      b.m.scale.setScalar(1 + b.t * 18);
+      b.m.material.opacity = Math.max(0, 0.85 - b.t / 0.35);
+      if (b.t > 0.35) b.m.visible = false;
     }
   }
 }

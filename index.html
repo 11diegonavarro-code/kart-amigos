@@ -101,7 +101,7 @@
 </script>
 </head>
 <body>
-<div id="loading">Cargando el circuito…</div>
+<div id="loading">Cargando el circuito… <span id="loadPct">0%</span></div>
 
 <div id="menu" class="overlay">
   <div class="panel">
@@ -116,13 +116,14 @@
     <details><summary>Tengo un código de sala</summary>
       <div><input id="codeInput" maxlength="5" placeholder="ABCDE" autocomplete="off"><button id="btnCode">Unirse</button></div>
     </details>
-    <label>Gráficos <select id="quality"><option value="alta">Altos</option><option value="baja">Rendimiento</option></select></label>
+    <label>Gráficos <select id="quality"><option value="ultra">Ultra</option><option value="alta">Altos</option><option value="baja">Rendimiento</option></select></label>
     <p id="menuMsg" class="msg"></p>
     <div class="controls">
       <kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd> / flechas: conducir · <kbd>Espacio</kbd>: derrapar (al soltar, turbo)<br>
       <kbd>E</kbd> / <kbd>Shift</kbd>: usar objeto (con <kbd>S</kbd> pulsada, hacia atrás) · <kbd>C</kbd>: mirar atrás · <kbd>R</kbd>: volver a la pista<br>
       Mando: A/RT acelerar · B/LT frenar · RB derrapar · X/LB objeto · Y mirar atrás
     </div>
+    <p class="hint" style="text-align:center">Texturas y cielo: Poly Haven (CC0)</p>
   </div>
 </div>
 

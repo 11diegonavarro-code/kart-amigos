@@ -16,8 +16,12 @@ const DIRECT_TIMEOUT = 6000, RELAY_TIMEOUT = 9000;
 const rid = n => Array.from({ length: n }, () => ALPHA[Math.floor(Math.random() * ALPHA.length)]).join('');
 const decode = p => { try { return JSON.parse(new TextDecoder().decode(p)); } catch { return null; } };
 
+const hasPeer = () => typeof Peer === 'function';
+const hasMqtt = () => typeof mqtt === 'object' && typeof mqtt.connect === 'function';
+
 function connectBroker(url) {
   return new Promise((resolve, reject) => {
+    if (!hasMqtt()) { reject(new Error('mqtt no cargado')); return; }
     const c = mqtt.connect(url, { clientId: 'ka_' + rid(10), clean: true, connectTimeout: 7000, reconnectPeriod: 3000, keepalive: 20 });
     const t = setTimeout(() => { c.end(true); reject(new Error('timeout ' + url)); }, 8000);
     c.once('connect', () => { clearTimeout(t); resolve(c); });
@@ -48,6 +52,7 @@ export class Net {
   async createRoom() {
     this.code = rid(5);
     const direct = new Promise(resolve => {
+      if (!hasPeer()) { resolve(false); return; }
       const peer = new Peer(PREFIX + this.code, { config: ICE, debug: 1 });
       peer.on('open', () => { this.peer = peer; resolve(true); });
       peer.on('connection', conn => this.acceptDirect(conn));
@@ -129,7 +134,7 @@ export class Net {
     this.code = code;
     const forceRelay = new URLSearchParams(location.search).has('relay'); // para pruebas
     try {
-      if (forceRelay) throw new Error('relay forzado');
+      if (forceRelay || !hasPeer()) throw new Error('directa no disponible');
       await this.joinDirect(code, meta);
       this.via = 'directa';
     } catch {

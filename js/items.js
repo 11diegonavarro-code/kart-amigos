@@ -66,6 +66,9 @@ function makeMesh(type) {
   return g;
 }
 
+// Una malla de cada objeto, para compilar sus materiales durante la carga
+export const warmMeshes = () => Object.keys(ITEMS).filter(t => t !== 'turbo' && t !== 'escudo').map(makeMesh);
+
 export class Items {
   constructor(game) {
     this.g = game;
